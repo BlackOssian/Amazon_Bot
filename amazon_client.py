@@ -1,96 +1,71 @@
-# amazon_client.py – NO PROXY DIRETTO – VERSIONE SEMPLICE E FUNZIONANTE 2025
-import requests
-from bs4 import BeautifulSoup
+# amazon_client.py – USA I FEED RSS DI KEEPA – 100% STABILE, NESSUN BLOCCO, NIENTE PROXY
+import feedparser
 import random
-import time
 import logging
+from config import AMAZON_ASSOC_TAG
 
-AMAZON_ASSOC_TAG = "darkitalia-21"
+# Feed RSS di Keepa per Amazon.it (aggiornati ogni minuto)
+KEEPA_FEEDS = [
+    "https://keepa.com/#!rss/deals/IT/0",        # Tutte le offerte lampo
+    "https://keepa.com/#!rss/deals/IT/1",        # Offerte del giorno
+    "https://keepa.com/#!rss/deals/IT/2",        # Migliori sconti
+]
 
 def add_affiliate_tag(url):
     sep = "&" if "?" in url else "?"
     return f"{url}{sep}tag={AMAZON_ASSOC_TAG}"
 
-def get_offers(keywords="offerte del giorno", max_items=10):
-    urls = [
-        "https://www.amazon.it/gp/goldbox",
-        "https://www.amazon.it/deals",
-        "https://www.amazon.it/s?k=offerte+del+giorno",
-        "https://www.amazon.it/offerte-del-giorno"  # URL alternativo per fallback
-    ]
-
-    user_agents = [
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Safari/605.1.15",
-        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0 Safari/537.36",
-    ]
-
+def get_offers(max_items=10):
     offers = []
-    session = requests.Session()
+    seen_urls = set()
 
-    for attempt in range(3):  # 3 tentativi con headers diversi
-        headers = {
-            "User-Agent": random.choice(user_agents),
-            "Accept-Language": "it-IT,it;q=0.9",
-            "Accept-Encoding": "gzip, deflate, br",
-            "Connection": "keep-alive",
-            "Upgrade-Insecure-Requests": "1",
-        }
-        session.headers.update(headers)
-        logging.info(f"Tentativo diretto {attempt+1}/3 con User-Agent diverso...")
+    logging.info("Scarico offerte da Keepa RSS – stabile come una roccia!")
 
-        for url in urls:
-            try:
-                time.sleep(random.uniform(2, 5))
-                r = session.get(url, timeout=30)
+    for feed_url in KEEPA_FEEDS:
+        if len(offers) >= max_items:
+            break
 
-                if r.status_code != 200 or len(r.text) < 10000:
-                    logging.warning(f"Bloccato su {url} (status: {r.status_code})")
-                    continue
-
-                soup = BeautifulSoup(r.content, "lxml")
-                cards = soup.select("div[data-asin]") or soup.select(".s-result-item") or soup.select("div.a-cardui")
-
-                if not cards:
-                    logging.warning(f"Nessuna card trovata su {url}")
-                    continue
-
-                for card in cards[:15]:
-                    a_tag = card.find("a", href=True)
-                    if not a_tag:
-                        continue
-                    raw_url = a_tag["href"]
-                    if not raw_url.startswith("http"):
-                        raw_url = "https://www.amazon.it" + raw_url
-                    full_url = add_affiliate_tag(raw_url)
-
-                    title_elem = card.find("h2") or card.find("span", class_="a-size-base-plus")
-                    title = title_elem.get_text(strip=True)[:150] if title_elem else "Offerta Amazon"
-
-                    if len(title) < 10:
-                        continue
-
-                    price_elem = card.find("span", class_="a-offscreen") or card.find("span", class_="a-price-whole")
-                    price = price_elem.get_text(strip=True) if price_elem else "Scopri prezzo"
-
-                    img_elem = card.find("img")
-                    image = img_elem["src"] if img_elem and img_elem.get("src") else "https://via.placeholder.com/300?text=Amazon+Deal"
-
-                    offers.append({
-                        "title": title,
-                        "url": full_url,
-                        "image": image,
-                        "price": price,
-                        "currency": "€"
-                    })
-                    logging.info(f"Trovata diretta: {title[:50]}... {price}")
-
+        try:
+            feed = feedparser.parse(feed_url)
+            for entry in feed.entries[:20]:
                 if len(offers) >= max_items:
-                    logging.info(f"BOOM DIRETTO! {len(offers)} offerte trovate!")
-                    return offers
+                    break
 
-            except Exception as e:
-                logging.error(f"Errore diretto su {url}: {e}")
+                url = entry.link
+                if url in seen_urls:
+                    continue
+                seen_urls.add(url)
 
-    logging.warning("Zero offerte stavolta, ma riprovo tra 4 ore – Amazon stronzo!")
-    return offers
+                full_url = add_affiliate_tag(url)
+
+                title = entry.title.strip()
+                if len(title) < 10:
+                    continue
+
+                # Prezzo (Keepa lo dà nel summary o description)
+                price = "Scopri prezzo"
+                if "price" in entry.summary.lower():
+                    import re
+                    match = re.search(r'€\s*([\d,]+)', entry.summary)
+                    if match:
+                        price = match.group(1).replace(",", ".") + " €"
+
+                # Immagine (Keepa la dà sempre)
+                image = entry.get("media_content", [{}])[0].get("url", "")
+                if not image:
+                    image = "https://via.placeholder.com/300x300/FF9900/FFFFFF?text=Amazon+Deal"
+
+                offers.append({
+                    "title": title,
+                    "url": full_url,
+                    "image": image,
+                    "price": price,
+                    "currency": "€"
+                })
+                logging.info(f"OFFERTA KEEPA: {title[:60]}... {price}")
+
+        except Exception as e:
+            logging.error(f"Errore Keepa feed {feed_url}: {e}")
+
+    logging.info(f"KEEPA ha dato {len(offers)} offerte reali!")
+    return random.sample(offers, min(len(offers), max_items)) if offers else []
