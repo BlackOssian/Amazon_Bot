@@ -1,4 +1,4 @@
-# main.py – VERSIONE FINALE 5 DICEMBRE 2025 – POSTA SU TELEGRAM SENZA BAN
+# main.py – VERSIONE CON FILTRO CATEGORIA ESPLICITO
 import os
 import time
 import logging
@@ -16,6 +16,7 @@ def home():
 
 def run_flask():
     port = int(os.environ.get("PORT", 10000))
+    # use_reloader=False è necessario in un ambiente multi-thread come Render
     app.run(host="0.0.0.0", port=port, debug=False, use_reloader=False)
 
 # ===================== LOGGING =====================
@@ -30,12 +31,40 @@ logging.basicConfig(
 
 # ===================== CONFIG & FILTRI =====================
 CHECK_INTERVAL = 4 * 60 * 60  # 4 ore (4 ore * 60 minuti * 60 secondi)
-MAX_OFFERS_PER_RUN = 8
-# Aggiungi qui altre parole chiave da ignorare (es. detersivi, alimenti generici, ecc.)
-BLACKLIST_KEYWORDS = ["viakal", "disincrostante", "lavatrice", "sapone", "detersivo", "candeggina", "alimento", "cibo"]
+MAX_POSTS_PER_RUN = 8        # Massimo post per ciclo
 
 posted_urls = set()
 
+# ----------------- FILTRO CATEGORIE -----------------
+# 1. MAPPATURA: Definisci la tua Categoria (chiave) e le parole chiave associate (valori)
+# Il sistema assegnerà l'offerta alla prima categoria che trova nel titolo.
+CATEGORY_MAPPING = {
+    "elettronica": ["mouse", "tastiera", "cuffie", "scheda video", "ssd", "telecomando", "smartwatch", "tv", "monitor"],
+    "gaming": ["ps5", "xbox", "nintendo", "gioco", "joypad", "logitech", "razer"],
+    "casa_giardino": ["tappeto", "aspirapolvere", "trapano", "luci led", "sedia ufficio", "martello", "utensile", "giardino"],
+    "abbigliamento": ["scarpe", "giacca", "maglione", "t-shirt", "pantaloni", "camicia"],
+    "cura_persona": ["rasoio", "profumo", "crema", "spazzolino elettrico", "massaggiatore"],
+    # Categoria di esclusione esplicita per i prodotti a basso margine che intasano il feed
+    "esclusi_generici": ["viakal", "disincrostante", "lavatrice", "detersivo", "candeggina", "alimento", "cibo", "sapone"]
+}
+
+# 2. SELEZIONE: Inserisci QUI le categorie che VUOI PUBBLICARE.
+# Solo le offerte che rientrano in queste categorie verranno processate.
+# Nota: La categoria "esclusi_generici" viene sempre scartata.
+ALLOWED_CATEGORIES = ["elettronica", "gaming", "casa_giardino"]
+# ----------------------------------------------------------------------
+
+
+def categorize_offer(title):
+    """Assegna una categoria all'offerta in base alle parole chiave nel titolo."""
+    title_lower = title.lower()
+    for category, keywords in CATEGORY_MAPPING.items():
+        for keyword in keywords:
+            if keyword in title_lower:
+                return category
+    return "altro" # Se nessuna keyword corrisponde, assegna la categoria 'altro'
+
+# ===================== GESTIONE URL PUBBLICATI =====================
 def load_posted_urls():
     try:
         with open("posted.txt", "r", encoding="utf-8") as f:
@@ -47,12 +76,13 @@ def save_posted_url(url):
     with open("posted.txt", "a", encoding="utf-8") as f:
         f.write(url + "\n")
 
+# ===================== FUNZIONE PRINCIPALE =====================
 def run_once():
     global posted_urls
     logging.info("Inizio scraping Amazon...")
     
-    # Prende più offerte del necessario per garantire che, dopo i filtri, restino sufficienti
-    offers = get_offers(max_items=MAX_OFFERS_PER_RUN * 3)
+    # Prende molte più offerte per avere un pool da filtrare
+    offers = get_offers(max_items=MAX_POSTS_PER_RUN * 10) 
 
     if not offers:
         logging.error("Nessuna offerta trovata, riprovo tra 4 ore.")
@@ -60,42 +90,50 @@ def run_once():
 
     nuove = 0
     
-    # Il ciclo for usa 'offers' e l'indentazione è corretta.
     for offer in offers:
         
-        # 1. FILTRO PER KEYWORD (CATEGORIE IRRILEVANTI)
-        title = offer["title"].lower()
-        if any(keyword in title for keyword in BLACKLIST_KEYWORDS):
-            logging.info(f"SALTATA (Blacklist): {offer['title'][:60]}...")
+        # 1. CATEGORIZZAZIONE DELL'OFFERTA
+        category = categorize_offer(offer["title"])
+
+        # 2. FILTRO ESCLUSIONE ESPLICITA (BLACKLIST)
+        if category == "esclusi_generici":
+            logging.info(f"SALTATA (Esclusa): {offer['title'][:60]}... Categoria: {category}")
+            continue
+
+        # 3. FILTRO DI INCLUSIONE (WHITELIST)
+        if ALLOWED_CATEGORIES and category not in ALLOWED_CATEGORIES:
+            logging.info(f"SALTATA (Non Autorizzata): {offer['title'][:60]}... Categoria: {category}")
             continue
             
-        # 2. FILTRO PER URL GIA' PUBBLICATO
+        # 4. FILTRO PER URL GIA' PUBBLICATO
         if offer["url"] in posted_urls:
             continue
             
-        # 3. LIMITAZIONE NUMERO MASSIMO OFFERTE
-        if nuove >= MAX_OFFERS_PER_RUN:
+        # 5. LIMITAZIONE NUMERO MASSIMO POST
+        if nuove >= MAX_POSTS_PER_RUN:
             break
             
-        # 4. POSTING E REGISTRAZIONE
+        # 6. POSTING E REGISTRAZIONE
         try:
-            # send_offer_photo dovrebbe loggare POSTATA SU @canale
+            # Invio foto e messaggio a Telegram
             send_offer_photo(offer) 
+            
+            # Aggiornamento stato
             posted_urls.add(offer["url"])
             save_posted_url(offer["url"])
             nuove += 1
             
-            # Rimosso il log duplicato POSTATA: ... (è gestito da send_offer_photo)
             time.sleep(10)  # ANTI-FLOOD ESTREMO
             
         except Exception as e:
+            # Se il post fallisce, logga e continua con la prossima offerta
             logging.error(f"Errore durante il posting di {offer['url']}: {e}")
 
     logging.info(f"Giro finito – {nuove} nuove offerte pubblicate sul canale!")
 
 # ===================== AVVIO PRINCIPALE =====================
 if __name__ == "__main__":
-    # Flask per tenere vivo Render FREE
+    # Avvio Flask su un thread separato
     flask_thread = threading.Thread(target=run_flask)
     flask_thread.daemon = True
     flask_thread.start()
@@ -108,7 +146,7 @@ if __name__ == "__main__":
     # Primo giro subito
     run_once()
 
-    # Ciclo infinito
+    # Ciclo infinito per l'intervallo
     while True:
         try:
             time.sleep(CHECK_INTERVAL)
