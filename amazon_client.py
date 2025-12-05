@@ -1,59 +1,71 @@
-# amazon_client.py – USA I FEED RSS DI KEEPA – 100% STABILE, NESSUN BLOCCO, NIENTE PROXY
-import feedparser
+# amazon_client.py – DIRETTO GRATIS 2025 – PRENDE SOLO OFFERTE REALI
+import requests
+from bs4 import BeautifulSoup
 import random
+import time
 import logging
-from config import AMAZON_ASSOC_TAG
 
-# Feed RSS di Keepa per Amazon.it (aggiornati ogni minuto)
-KEEPA_FEEDS = [
-    "https://keepa.com/#!rss/deals/IT/0",        # Tutte le offerte lampo
-    "https://keepa.com/#!rss/deals/IT/1",        # Offerte del giorno
-    "https://keepa.com/#!rss/deals/IT/2",        # Migliori sconti
-]
+AMAZON_ASSOC_TAG = "darkitalia-21"
 
 def add_affiliate_tag(url):
     sep = "&" if "?" in url else "?"
     return f"{url}{sep}tag={AMAZON_ASSOC_TAG}"
 
-def get_offers(max_items=10):
+def get_offers(max_items=8):
+    urls = [
+        "https://www.amazon.it/gp/goldbox",
+        "https://www.amazon.it/deals",
+        "https://www.amazon.it/s?k=offerte+del+giorno"
+    ]
+
+    headers = {
+        "User-Agent": random.choice([
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Safari/605.1.15",
+        ]),
+        "Accept-Language": "it-IT,it;q=0.9",
+        "Accept": "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8",
+        "Connection": "keep-alive",
+        "Upgrade-Insecure-Requests": "1",
+    }
+
     offers = []
-    seen_urls = set()
+    session = requests.Session()
+    session.headers.update(headers)
 
-    logging.info("Scarico offerte da Keepa RSS – stabile come una roccia!")
-
-    for feed_url in KEEPA_FEEDS:
-        if len(offers) >= max_items:
-            break
-
+    for url in urls:
         try:
-            feed = feedparser.parse(feed_url)
-            for entry in feed.entries[:20]:
-                if len(offers) >= max_items:
-                    break
+            time.sleep(random.uniform(3, 6))
+            r = session.get(url, timeout=40)
 
-                url = entry.link
-                if url in seen_urls:
+            if r.status_code != 200:
+                continue
+
+            soup = BeautifulSoup(r.content, "lxml")
+
+            # Selettori per offerte reali (2025, evita placeholder)
+            cards = soup.find_all("div", {"data-asin": True})[:20]
+
+            for card in cards:
+                a = card.find("a", href=True)
+                if not a:
                     continue
-                seen_urls.add(url)
 
-                full_url = add_affiliate_tag(url)
+                raw_url = a["href"]
+                if not raw_url.startswith("http"):
+                    raw_url = "https://www.amazon.it" + raw_url
+                full_url = add_affiliate_tag(raw_url)
 
-                title = entry.title.strip()
-                if len(title) < 10:
+                title_elem = card.find("h2") or card.find("span", class_="a-size-base-plus")
+                title = title_elem.get_text(strip=True) if title_elem else None
+                if not title or len(title) < 20 or title.startswith("Offerta Amazon"):  # FILTRA MERDA
                     continue
 
-                # Prezzo (Keepa lo dà nel summary o description)
-                price = "Scopri prezzo"
-                if "price" in entry.summary.lower():
-                    import re
-                    match = re.search(r'€\s*([\d,]+)', entry.summary)
-                    if match:
-                        price = match.group(1).replace(",", ".") + " €"
+                price_elem = card.find("span", class_="a-offscreen") or card.find("span", class_="a-price-whole")
+                price = price_elem.get_text(strip=True) if price_elem else "Scopri prezzo"
 
-                # Immagine (Keepa la dà sempre)
-                image = entry.get("media_content", [{}])[0].get("url", "")
-                if not image:
-                    image = "https://via.placeholder.com/300x300/FF9900/FFFFFF?text=Amazon+Deal"
+                img = card.find("img")
+                image = img["src"] if img and img.get("src") else "https://via.placeholder.com/300?text=Deal"
 
                 offers.append({
                     "title": title,
@@ -62,10 +74,13 @@ def get_offers(max_items=10):
                     "price": price,
                     "currency": "€"
                 })
-                logging.info(f"OFFERTA KEEPA: {title[:60]}... {price}")
+                logging.info(f"OFFERTA REALE: {title[:50]}... {price}")
+
+                if len(offers) >= max_items:
+                    break
 
         except Exception as e:
-            logging.error(f"Errore Keepa feed {feed_url}: {e}")
+            logging.error(f"Errore: {e}")
 
-    logging.info(f"KEEPA ha dato {len(offers)} offerte reali!")
-    return random.sample(offers, min(len(offers), max_items)) if offers else []
+    logging.info(f"TROVATE {len(offers)} offerte reali – POSTO ORA!")
+    return offers
