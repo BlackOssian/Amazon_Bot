@@ -55,21 +55,17 @@ def run_once():
 
     nuove = 0
     for offer in offers:
-        if len(offer["title"]) < 20 or "Offerta Amazon" in offer["title"] or "Viakal" in offer["title"]:  # filtro merda
-            continue
-        if offer["url"] in posted_urls:
-            continue
-
-        try:
-            send_offer_photo(offer)
-            posted_urls.add(offer["url"])
-            save_posted_url(offer["url"])
-            nuove += 1
-            logging.info(f"Postata: {offer['title'][:60]}... {offer['price']}")
-            time.sleep(5)  # ← ANTI-FLOOD: 5 secondi tra un post e l’altro
-        except Exception as e:
-            logging.error(f"Errore Telegram: {e}")
-            time.sleep(10)
+    if offer["url"] in posted_urls:
+        continue
+    try:
+        send_offer_photo(offer)
+        posted_urls.add(offer["url"])
+        save_posted_url(offer["url"])
+        nuove += 1
+        logging.info(f"POSTATA: {offer['title'][:60]}...")
+        time.sleep(10)  # ANTI-FLOOD ESTREMO
+    except Exception as e:
+        logging.error(f"Errore: {e}")
 
         if nuove >= MAX_OFFERS_PER_RUN:
             break
