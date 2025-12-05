@@ -73,6 +73,11 @@ def run_once():
     logging.info(f"Giro completato - {new_offers} nuove offerte postate.")
 
 if __name__ == "__main__":
+    flask_thread = threading.Thread(target=run_flask)
+    flask_thread.daemon = True
+    flask_thread.start()
+    logging.info("Flask avviato su porta 10000 - FREE MODE ATTIVO!")
+    
     logging.info("Bot Amazon affiliato avviato - modalità 24/7")
     posted_urls = load_posted_urls()
     
