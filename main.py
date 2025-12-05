@@ -1,6 +1,20 @@
 # main.py
 import time
 import logging
+from flask import Flask
+import threading
+
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "Bot Amazon Affiliato FREE 24/7 - Pompa offerte mentre dormi! 💸🔥"
+
+# Avvia Flask in thread separato per tenere la porta aperta
+def run_flask():
+    app.run(host='0.0.0.0', port=10000, debug=False)
+
+# Nel while True, resta uguale – Flask gira in background
 from datetime import datetime
 from amazon_client import get_offers
 from telegram_client import send_offer_photo
