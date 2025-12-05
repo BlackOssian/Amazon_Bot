@@ -54,8 +54,8 @@ def run_once():
         return
 
     nuove = 0
-    for offer in offers:
-    if offer["url"] in posted_urls:
+for offer in scraped_offers:
+    if offer["url"] in posted_urls: # <
         continue
     try:
         send_offer_photo(offer)
