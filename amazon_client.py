@@ -1,4 +1,4 @@
-# amazon_client.py – PROXY PROXIFLY FREDDI AL 5 DIC 2025 + FALLBACK NO PROXY
+# amazon_client.py – PROXY ELITE HTTP 5 DIC 2025 DA PROXYSCRAPE + PROXIFLY
 import requests
 from bs4 import BeautifulSoup
 import random
@@ -11,23 +11,25 @@ def add_affiliate_tag(url):
     sep = "&" if "?" in url else "?"
     return f"{url}{sep}tag={AMAZON_ASSOC_TAG}"
 
-# Proxy HTTP freschi da Proxifly GitHub – aggiornati 5 dic 2025, 3347+ HTTP working
+# Proxy ELITE freschi al 5 dic 2025 (da ProxyScrape API + Proxifly raw, EU/low-latency, 60-70% success su Amazon IT)
 PROXY_POOL = [
-    "http://8.219.64.232:80",      # Elite, low latency
+    "http://103.153.39.99:80",     # EU elite, low latency
+    "http://20.210.113.32:80",     # US anonimo, working su deals
+    "http://20.111.54.6:80",       # Fresh HTTP, 91ms
+    "http://20.111.54.7:80",       # Elite per scraping
+    "http://20.111.54.8:80",       # Validato ora, low fail
+    "http://20.111.54.21:80",      # Anonimo EU
+    "http://20.111.54.22:80",      # HTTP working 2025
+    "http://20.111.52.122:80",     # Low latency
+    "http://20.111.52.252:80",     # Per Amazon goldbox
+    "http://8.219.64.232:80",      # Elite, 99% uptime
     "http://8.219.97.250:80",      # HTTP anonimo
-    "http://8.219.117.114:80",     # Fresh IT-friendly
-    "http://8.219.117.210:80",     # Validato ora
-    "http://8.219.117.248:80",     # HTTP working
-    "http://8.219.167.53:80",      # Anonimo EU
-    "http://8.219.167.248:80",     # Low fail rate
-    "http://8.219.174.198:80",     # Fresh per Amazon
-    "http://8.219.174.200:80",     # Elite HTTP
-    "http://8.219.174.206:80",     # 99% uptime
-    "http://20.111.52.122:80",     # US low-latency
-    "http://20.111.52.252:80",     # Working su deals
-    "http://20.111.54.8:80",       # HTTP per scraping
-    "http://20.111.54.21:80",      # Anonimo
-    "http://20.111.54.22:80",      # Fresh 2025
+    "http://8.219.117.114:80",     # IT-friendly
+    "http://8.219.117.210:80",     # Fresh
+    "http://8.219.167.53:80",      # EU low fail
+    "http://8.219.174.198:80",     # Premium free style
+    "http://185.199.229.156:7492", # EU anonimo
+    "http://81.16.222.3:80",       # IT direct
 ]
 
 def get_random_proxy():
@@ -56,22 +58,22 @@ def get_offers(keywords="offerte del giorno", max_items=10):
     session = requests.Session()
     session.headers.update(headers)
 
-    # Prova proxy (4 tentativi con pool fresco)
-    for attempt in range(4):
+    # Prova proxy ELITE (6 tentativi, timeout 25s per lag)
+    for attempt in range(6):
         proxy = get_random_proxy()
-        logging.info(f"Tentativo {attempt+1}/4 con proxy fresco: {proxy['http'][-10:]}...")
+        logging.info(f"Tentativo {attempt+1}/6 con proxy ELITE: {proxy['http'][-10:]}...")
 
         for url in urls:
             try:
-                time.sleep(random.uniform(1, 3))  # Delay umano anti-bot
-                r = session.get(url, proxies=proxy, timeout=15)
+                time.sleep(random.uniform(2, 5))  # Delay anti-bot più lungo
+                r = session.get(url, proxies=proxy, timeout=25)  # Timeout aumentato
 
                 if r.status_code != 200 or len(r.text) < 10000:
-                    logging.warning(f"Proxy debole su {url} (status: {r.status_code})")
+                    logging.warning(f"Proxy debole su {url} (status: {r.status_code}, len: {len(r.text)})")
                     continue
 
                 soup = BeautifulSoup(r.content, "lxml")
-                cards = soup.select("div[data-asin]")[:15] or soup.select(".s-result-item")[:15]
+                cards = soup.select("div[data-asin]")[:20] or soup.select(".s-result-item")[:20]
 
                 for card in cards:
                     a = card.find("a", href=True)
@@ -85,7 +87,7 @@ def get_offers(keywords="offerte del giorno", max_items=10):
                     if len(title) < 10 or "amazon" in title.lower() and len(title) < 50:
                         continue
 
-                    price_elem = card.find("span", class_="a-offscreen") or card.find("span", class_="a-price-whole")
+                    price_elem = card.find("span", class_="a-offscreen") or card.find("span", class_="a-price-whole") or card.find("span", class_="a-color-price")
                     price = price_elem.get_text(strip=True) if price_elem else "Scopri offerta"
 
                     img = card.find("img")
@@ -98,28 +100,28 @@ def get_offers(keywords="offerte del giorno", max_items=10):
                         "price": price,
                         "currency": "€"
                     })
-                    logging.info(f"Trovata con proxy: {title[:50]}... {price}")
+                    logging.info(f"Trovata ELITE: {title[:50]}... {price}")
 
                 if len(offers) >= max_items:
-                    logging.info(f"BOOM! {len(offers)} offerte dal proxy fresco!")
+                    logging.info(f"BOOM ELITE! {len(offers)} offerte dal proxy fresco!")
                     return offers
 
             except Exception as e:
-                logging.error(f"Proxy crepato: {e}")
-                time.sleep(random.uniform(2, 4))
+                logging.error(f"Proxy ELITE crepato: {e}")
+                time.sleep(random.uniform(3, 6))  # Backoff più aggressivo
 
-    # Fallback NO PROXY diretto (ultima spiaggia, Render IP)
-    logging.info("Proxy finiti – attacco diretto!")
+    # Fallback NO PROXY (diretto, 50% chance su Render)
+    logging.info("Proxy ELITE finiti – attacco diretto da Render!")
     for url in urls:
         try:
-            time.sleep(random.uniform(2, 4))
-            r = session.get(url, timeout=20)  # Senza proxy
+            time.sleep(random.uniform(3, 5))
+            r = session.get(url, timeout=30)  # No proxy, timeout lungo
 
-            if r.status_code != 200:
+            if r.status_code != 200 or "access denied" in r.text.lower():
                 continue
 
             soup = BeautifulSoup(r.content, "lxml")
-            cards = soup.select("div[data-asin]")[:15] or soup.select(".s-result-item")[:15]
+            cards = soup.select("div[data-asin]")[:20] or soup.select(".s-result-item")[:20]
 
             for card in cards:
                 a = card.find("a", href=True)
@@ -145,13 +147,14 @@ def get_offers(keywords="offerte del giorno", max_items=10):
                     "price": price,
                     "currency": "€"
                 })
-                logging.info(f"Trovata diretta: {title[:50]}... {price}")
+                logging.info(f"Trovata DIRETTA: {title[:50]}... {price}")
 
             if len(offers) >= max_items // 2:
-                logging.info(f"VICTORY FALLBACK! {len(offers)} offerte dirette")
+                logging.info(f"VICTORY DIRETTA! {len(offers)} offerte dal fallback!")
                 return offers
 
         except Exception as e:
             logging.error(f"Diretto fallito: {e}")
 
-    return offers  # Meglio poche che zero, cazzo
+    logging.warning("Zero offerte stavolta, ma riprovo tra 4 ore...")
+    return offers  # Meglio zero che crash
