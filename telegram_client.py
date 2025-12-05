@@ -39,12 +39,19 @@ async def send_offer_async(offer):
     except Exception as e:
         logging.error(f"❌ ERRORE TELEGRAM: {e}")
 
+import asyncio # Assicurati che asyncio sia importato
+
 def send_offer_photo(offer):
-    import asyncio
-    # Crea un loop dedicato per ogni messaggio (funziona sempre)
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
+    """Esegue l'invio asincrono in modo sincrono usando asyncio.run()"""
     try:
-        loop.run_until_complete(send_offer_async(offer))
-    finally:
-        loop.close()
+        # Questo crea, esegue e chiude un loop pulito per il singolo task
+        asyncio.run(send_offer_async(offer))
+    except RuntimeError as e:
+        # Gestisce i casi in cui l'invio viene chiamato in un contesto già in esecuzione
+        if 'Event loop is closed' in str(e):
+             logging.warning("⚠️ Tentativo di invio fallito a causa di loop chiuso. Saltato.")
+        else:
+             logging.error(f"❌ ERRORE ASYNCIO GENERALE: {e}")
+    except Exception as e:
+        # Errori generici di invio che non sono catturati in send_offer_async
+        logging.error(f"❌ ERRORE NELLA CHIAMATA SYNC: {e}")
