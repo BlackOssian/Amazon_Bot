@@ -1,36 +1,43 @@
-# telegram_client.py – VERSIONE 2025 CHE FUNZIONA DAVVERO CON @username
+# telegram_client.py – VERSIONE CHE FUNZIONA DAVVERO 2025 (async + Application)
 import os
-import asyncio
+import logging
 from telegram import Bot
 from telegram.constants import ParseMode
-import logging
 
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "@superamaz0n")  # funziona con @username se bot è admin
+# Token e chat da env (funziona con @username se bot è admin)
+TOKEN = os.getenv("TELEGRAM_TOKEN")
+CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "@superamaz0n")
 
-bot = Bot(token=TELEGRAM_TOKEN)
+bot = Bot(token=TOKEN)
 
-async def _send_photo(offer):
+async def send_offer_async(offer):
     caption = (
         f"<b>{offer['title']}</b>\n"
         f"💰 <b>Prezzo:</b> {offer['price']} {offer['currency']}\n"
         f"🔗 <a href=\"{offer['url']}\">Vai all'offerta su Amazon</a>"
     )
-    
-    await bot.send_photo(
-        chat_id=TELEGRAM_CHAT_ID,
-        photo=offer["image"],
-        caption=caption,
-        parse_mode=ParseMode.HTML,
-        read_timeout=20,
-        write_timeout=20,
-        connect_timeout=20,
-        pool_timeout=20
-    )
+
+    try:
+        await bot.send_photo(
+            chat_id=CHAT_ID,
+            photo=offer["image"],
+            caption=caption,
+            parse_mode=ParseMode.HTML,
+            read_timeout=30,
+            write_timeout=30,
+            connect_timeout=30,
+            pool_timeout=30
+        )
+        logging.info(f"✅ POSTATA SU {CHAT_ID}: {offer['title'][:60]}...")
+    except Exception as e:
+        logging.error(f"❌ ERRORE TELEGRAM: {e}")
 
 def send_offer_photo(offer):
+    import asyncio
+    # Crea un loop dedicato per ogni messaggio (funziona sempre)
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
     try:
-        asyncio.run(_send_photo(offer))
-        logging.info(f"POSTATA SU {TELEGRAM_CHAT_ID}: {offer['title'][:60]}...")
-    except Exception as e:
-        logging.error(f"ERRORE TELEGRAM (finalmente visibile): {e}")
+        loop.run_until_complete(send_offer_async(offer))
+    finally:
+        loop.close()
