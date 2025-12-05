@@ -47,26 +47,33 @@ def save_posted_url(url):
 
 def run_once():
     logging.info("Inizio scraping Amazon...")
+    # NOTE: Qui devi cambiare 'get_offers' in base a come è implementata nel modulo 'amazon_client.py'
+    # Ho ipotizzato che ritorni la lista di offerte.
     offers = get_offers(max_items=MAX_OFFERS_PER_RUN * 3)  # ne prendo di più per filtrare
 
     if not offers:
         logging.error("Nessuna offerta trovata, riprovo tra 4 ore.")
         return
 
+    # Inizializzo 'nuove' e uso 'offers' (che è la lista restituita da get_offers)
     nuove = 0
-for offer in scraped_offers:
-    if offer["url"] in posted_urls: # <
-        continue
-    try:
-        send_offer_photo(offer)
-        posted_urls.add(offer["url"])
-        save_posted_url(offer["url"])
-        nuove += 1
-        logging.info(f"POSTATA: {offer['title'][:60]}...")
-        time.sleep(10)  # ANTI-FLOOD ESTREMO
-    except Exception as e:
-        logging.error(f"Errore: {e}")
+    # CORREZIONE 1: La variabile usata è 'offers', NON 'scraped_offers'
+    # CORREZIONE 2: Indentazione corretta per il ciclo for
+    for offer in offers:
+        if offer["url"] in posted_urls:
+            continue
+        
+        try:
+            send_offer_photo(offer)
+            posted_urls.add(offer["url"])
+            save_posted_url(offer["url"])
+            nuove += 1
+            logging.info(f"POSTATA: {offer['title'][:60]}...")
+            time.sleep(10)  # ANTI-FLOOD ESTREMO
+        except Exception as e:
+            logging.error(f"Errore: {e}")
 
+        # L'uscita anticipata deve essere all'interno del ciclo, ma NON dentro il try/except
         if nuove >= MAX_OFFERS_PER_RUN:
             break
 
