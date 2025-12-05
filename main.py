@@ -28,9 +28,11 @@ logging.basicConfig(
     ]
 )
 
-# ===================== CONFIG =====================
-CHECK_INTERVAL = 4 * 60 * 60  # 4 ore
+# ===================== CONFIG & FILTRI =====================
+CHECK_INTERVAL = 4 * 60 * 60  # 4 ore (4 ore * 60 minuti * 60 secondi)
 MAX_OFFERS_PER_RUN = 8
+# Aggiungi qui altre parole chiave da ignorare (es. detersivi, alimenti generici, ecc.)
+BLACKLIST_KEYWORDS = ["viakal", "disincrostante", "lavatrice", "sapone", "detersivo", "candeggina", "alimento", "cibo"]
 
 posted_urls = set()
 
@@ -46,40 +48,52 @@ def save_posted_url(url):
         f.write(url + "\n")
 
 def run_once():
+    global posted_urls
     logging.info("Inizio scraping Amazon...")
-    # NOTE: Qui devi cambiare 'get_offers' in base a come è implementata nel modulo 'amazon_client.py'
-    # Ho ipotizzato che ritorni la lista di offerte.
-    offers = get_offers(max_items=MAX_OFFERS_PER_RUN * 3)  # ne prendo di più per filtrare
+    
+    # Prende più offerte del necessario per garantire che, dopo i filtri, restino sufficienti
+    offers = get_offers(max_items=MAX_OFFERS_PER_RUN * 3)
 
     if not offers:
         logging.error("Nessuna offerta trovata, riprovo tra 4 ore.")
         return
 
-    # Inizializzo 'nuove' e uso 'offers' (che è la lista restituita da get_offers)
     nuove = 0
-    # CORREZIONE 1: La variabile usata è 'offers', NON 'scraped_offers'
-    # CORREZIONE 2: Indentazione corretta per il ciclo for
+    
+    # Il ciclo for usa 'offers' e l'indentazione è corretta.
     for offer in offers:
+        
+        # 1. FILTRO PER KEYWORD (CATEGORIE IRRILEVANTI)
+        title = offer["title"].lower()
+        if any(keyword in title for keyword in BLACKLIST_KEYWORDS):
+            logging.info(f"SALTATA (Blacklist): {offer['title'][:60]}...")
+            continue
+            
+        # 2. FILTRO PER URL GIA' PUBBLICATO
         if offer["url"] in posted_urls:
             continue
-        
+            
+        # 3. LIMITAZIONE NUMERO MASSIMO OFFERTE
+        if nuove >= MAX_OFFERS_PER_RUN:
+            break
+            
+        # 4. POSTING E REGISTRAZIONE
         try:
-            send_offer_photo(offer)
+            # send_offer_photo dovrebbe loggare POSTATA SU @canale
+            send_offer_photo(offer) 
             posted_urls.add(offer["url"])
             save_posted_url(offer["url"])
             nuove += 1
-            logging.info(f"POSTATA: {offer['title'][:60]}...")
+            
+            # Rimosso il log duplicato POSTATA: ... (è gestito da send_offer_photo)
             time.sleep(10)  # ANTI-FLOOD ESTREMO
+            
         except Exception as e:
-            logging.error(f"Errore: {e}")
-
-        # L'uscita anticipata deve essere all'interno del ciclo, ma NON dentro il try/except
-        if nuove >= MAX_OFFERS_PER_RUN:
-            break
+            logging.error(f"Errore durante il posting di {offer['url']}: {e}")
 
     logging.info(f"Giro finito – {nuove} nuove offerte pubblicate sul canale!")
 
-# ===================== AVVIO =====================
+# ===================== AVVIO PRINCIPALE =====================
 if __name__ == "__main__":
     # Flask per tenere vivo Render FREE
     flask_thread = threading.Thread(target=run_flask)
