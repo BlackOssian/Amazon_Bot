@@ -4,6 +4,13 @@ import logging
 from telegram import Bot
 from telegram.constants import ParseMode
 
+# Configurazione del logging (da aggiungere all'inizio del file)
+logging.basicConfig(
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    level=logging.INFO
+)
+# ... il resto del tuo codice
+
 # Token e chat da env (funziona con @username se bot è admin)
 TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "@superamaz0n")
