@@ -1,28 +1,31 @@
+# telegram_client.py – FUNZIONA CON @username DEL CANALE (NO ID NUMERICO)
 from telegram import Bot
-from telegram.constants import ParseMode # Modifica qui
-from config import TELEGRAM_TOKEN, TELEGRAM_CHAT_ID
+from telegram.constants import ParseMode
+import os
+import logging
+
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "@superamaz0n")  # Usa @username
 
 bot = Bot(token=TELEGRAM_TOKEN)
 
-def send_offer_photo(offer):
-    """
-    offer: dict con chiavi title, url, image, price, currency
-    """
-    title = offer["title"]
-    url = offer["url"]
-    image = offer["image"]
-    price = offer["price"]
-    currency = offer.get("currency", "€")
-
+async def send_offer_photo_async(offer):
     caption = (
-        f"<b>{title}</b>\n"
-        f"💰 <b>Prezzo:</b> {price} {currency}\n"
-        f"🔗 <a href=\"{url}\">Vai all'offerta su Amazon</a>"
+        f"<b>{offer['title']}</b>\n"
+        f"💰 <b>Prezzo:</b> {offer['price']} {offer['currency']}\n"
+        f"🔗 <a href=\"{offer['url']}\">Vai all'offerta su Amazon</a>"
+    )
+    await bot.send_photo(
+        chat_id=TELEGRAM_CHAT_ID,
+        photo=offer["image"],
+        caption=caption,
+        parse_mode=ParseMode.HTML
     )
 
-    bot.send_photo(
-        chat_id=TELEGRAM_CHAT_ID,
-        photo=image,
-        caption=caption,
-        parse_mode=ParseMode.HTML, # Ora ParseMode.HTML è l'oggetto corretto
-    )
+def send_offer_photo(offer):
+    import asyncio
+    try:
+        asyncio.run(send_offer_photo_async(offer))
+        logging.info(f"POSTATA SU @{TELEGRAM_CHAT_ID.split('@')[1]}: {offer['title'][:50]}...")
+    except Exception as e:
+        logging.error(f"Errore Telegram: {e}")
